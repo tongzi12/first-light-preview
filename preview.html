@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>FIRST LIGHT preview</title>
+<title>FIRST LIGHT</title>
 <style>
   html,body{margin:0;background:#000;color:#ddd;font:13px/1.4 monospace;overflow:hidden}
   #c{display:block}
@@ -23,27 +23,41 @@
 const FPS = 60, DUR = 106;
 const cv = document.getElementById('c');
 const st = document.getElementById('st'), seek = document.getElementById('seek'), playB = document.getElementById('play'), err = document.getElementById('err');
-let t = 0, playing = true, ready = false, lastMs = 0;
+const audio = new Audio('audio/first_light.mp3'); audio.preload = 'auto';
+let t = 0, playing = false, ready = false;
 try {
   const FL = (await import('./src/main.js')).default?.FL ?? window.FL;
   await FL.init({ w: innerWidth, h: innerHeight });
   cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px';
   addEventListener('resize', () => location.reload());
   ready = true;
-} catch (e) { err.textContent = 'INIT ERROR: ' + e.message; console.error(e); }
+  err.style.color = '#9f9'; err.textContent = '就绪 · 点 ▶ 开始播放（有声音）';
+} catch (e) { err.style.color = '#f66'; err.textContent = 'INIT ERROR: ' + e.message; console.error(e); }
 
+function render() {
+  try { FL.frameAt(t, { samples: 2 }); } catch (e) { err.style.color = '#f66'; err.textContent = 'FRAME ERROR: ' + e.message; playing = false; playB.textContent = '▶'; }
+  st.textContent = t.toFixed(1) + ' / ' + DUR + ' s';
+}
+function start() {
+  playing = true; playB.textContent = '⏸';
+  audio.currentTime = t; audio.play().catch(e => err.textContent = 'AUDIO: ' + e.message);
+  prev = performance.now();
+}
+function pause() { playing = false; playB.textContent = '▶'; audio.pause(); }
+playB.onclick = () => { ready && (playing ? pause() : start()); };
+seek.oninput = () => { t = +seek.value; audio.currentTime = Math.min(t, audio.duration || DUR); if (!playing) render(); };
 let prev = performance.now();
 function loop(now) {
   if (ready) {
     const dt = (now - prev) / 1000; prev = now;
-    if (playing) { t = (t + dt) % DUR; seek.value = t; }
-    try { FL.frameAt(t, { samples: 2 }); } catch (e) { err.textContent = 'FRAME ERROR: ' + e.message; playing = false; }
-    st.textContent = t.toFixed(1) + ' / ' + DUR + ' s  (' + lastMs + ' ms)';
+    if (playing) {
+      t = audio.currentTime; seek.value = t;
+      if (t >= DUR - 0.1) { pause(); t = 0; seek.value = 0; }
+    }
+    render();
   }
   requestAnimationFrame(loop);
 }
-playB.onclick = () => { playing = !playing; playB.textContent = playing ? '▶' : '⏸'; prev = performance.now(); };
-seek.oninput = () => { t = +seek.value; };
 requestAnimationFrame(loop);
 </script>
 </body>
